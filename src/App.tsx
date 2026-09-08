@@ -81,7 +81,7 @@ function App() {
 
         <span className="log-label">Status:</span>
         <span className="log-value" aria-label="Mouse Handle Status">
-          {status} / {connection}
+          {status}
         </span>
         <span className="log-label">Connection:</span>
         <span className="log-value" aria-label="Connection Status">
