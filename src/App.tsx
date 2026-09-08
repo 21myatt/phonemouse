@@ -6,14 +6,14 @@ import { useViewportSize } from "./hooks/useViewportSize";
 function App() {
   const [connection, setConnection] = useState(() => {
     const params = new URLSearchParams(window.location.search);
-    return params.has("host") && params.has("session")
+    return (params.has("ws") || params.has("host")) && params.has("session")
       ? "Connecting"
       : "Not paired";
   });
   const [retry, setRetry] = useState(0);
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    const host = params.get("host");
+    const host = params.get("ws") ?? params.get("host");
     const sessionId = params.get("session");
     if (!host || !sessionId) return;
     if (window.location.protocol === "https:" && host.startsWith("ws://")) {
