@@ -1,8 +1,32 @@
+import { useEffect, useState } from "react";
 import "./App.css";
 import { usePointerMeshes } from "./hooks/usePointerMeshes";
 import { useViewportSize } from "./hooks/useViewportSize";
 
 function App() {
+  const [connection, setConnection] = useState(() => {
+    const params = new URLSearchParams(window.location.search);
+    return params.has("host") && params.has("session") ? "Connecting" : "Not paired";
+  });
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const host = params.get("host");
+    const sessionId = params.get("session");
+    if (!host || !sessionId) return;
+    const socket = new WebSocket(host);
+    socket.addEventListener("open", () => {
+      socket.send(JSON.stringify({ type: "pair", sessionId }));
+    });
+    socket.addEventListener("message", (event) => {
+      try {
+        if (JSON.parse(event.data).type === "paired") setConnection("Paired");
+      } catch { setConnection("Pairing failed"); }
+    });
+    socket.addEventListener("error", () => setConnection("Connection failed"));
+    socket.addEventListener("close", () => setConnection("Disconnected"));
+    return () => socket.close();
+  }, []);
+
   const viewport = useViewportSize();
   const {
     meshes,
@@ -47,7 +71,7 @@ function App() {
 
         <span className="log-label">Status:</span>
         <span className="log-value" aria-label="Mouse Handle Status">
-          {status}
+          {status} / {connection}
         </span>
       </div>
     </main>
