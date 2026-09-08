@@ -91,6 +91,20 @@
 .log-value {
   font-weight: bold;
 }
+.reconnect-button {
+  grid-column: 1 / -1;
+  margin-top: 4px;
+  border: 1px solid rgba(0, 255, 204, 0.55);
+  border-radius: 3px;
+  padding: 5px 8px;
+  background: rgba(0, 255, 204, 0.12);
+  color: #00ffcc;
+  font: inherit;
+  cursor: pointer;
+}
+.reconnect-button:active {
+  background: rgba(0, 255, 204, 0.24);
+}
 @keyframes ring-out {
   0% {
     opacity: 0.9;

@@ -10,6 +10,7 @@ function App() {
       ? "Connecting"
       : "Not paired";
   });
+  const [retry, setRetry] = useState(0);
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const host = params.get("host");
@@ -35,7 +36,7 @@ function App() {
     );
     socket.addEventListener("close", () => setConnection("Disconnected"));
     return () => socket.close();
-  }, []);
+  }, [retry]);
 
   const viewport = useViewportSize();
   const {
@@ -87,6 +88,19 @@ function App() {
         <span className="log-value" aria-label="Connection Status">
           {connection}
         </span>
+        {(connection === "Disconnected" || connection.startsWith("Connection failed")) && (
+          <button
+            className="reconnect-button"
+            type="button"
+            onPointerDown={(event) => event.stopPropagation()}
+            onClick={() => {
+              setConnection("Connecting");
+              setRetry((value) => value + 1);
+            }}
+          >
+            Reconnect
+          </button>
+        )}
       </div>
     </main>
   );
