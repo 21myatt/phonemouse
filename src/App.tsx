@@ -1,9 +1,10 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import "./App.css";
 import { usePointerMeshes } from "./hooks/usePointerMeshes";
 import { useViewportSize } from "./hooks/useViewportSize";
 
 function App() {
+  const socketRef = useRef<WebSocket | null>(null);
   const [connection, setConnection] = useState(() => {
     const params = new URLSearchParams(window.location.search);
     return (params.has("ws") || params.has("host")) && params.has("session")
@@ -21,6 +22,7 @@ function App() {
       return;
     }
     const socket = new WebSocket(host);
+    socketRef.current = socket;
     socket.addEventListener("open", () => {
       socket.send(JSON.stringify({ type: "pair", sessionId }));
     });
@@ -45,7 +47,7 @@ function App() {
       }
       setConnection("Disconnected");
     });
-    return () => socket.close();
+    return () => { socket.close(); socketRef.current = null; };
   }, [retry]);
 
   const viewport = useViewportSize();
@@ -56,7 +58,11 @@ function App() {
     handlePointerDown,
     handlePointerMove,
     handlePointerUp,
-  } = usePointerMeshes();
+  } = usePointerMeshes((xPercent, yPercent) => {
+    if (socketRef.current?.readyState === WebSocket.OPEN && connection === "Paired") {
+      socketRef.current.send(JSON.stringify({ type: "pointer", xPercent, yPercent }));
+    }
+  });
   return (
     <main
       className="canvas"

@@ -8,7 +8,7 @@ const MESH_LIFETIME = 1500;
 const MAX_MESHES = 8;
 const TRAIL_DISTANCE = 18;
 
-export function usePointerMeshes() {
+export function usePointerMeshes(onPointer?: (xPercent: number, yPercent: number) => void) {
   const [meshes, setMeshes] = useState<PointerMesh[]>([]);
   const [latestPointer, setLatestPointer] = useState<PointerMesh | null>(null);
   const [status, setStatus] = useState<PointerStatus>("None");
@@ -58,12 +58,14 @@ export function usePointerMeshes() {
       }, 500);
 
       addMesh(event.clientX, event.clientY);
+      onPointer?.((event.clientX / window.innerWidth) * 100, (event.clientY / window.innerHeight) * 100);
     },
-    [addMesh],
+    [addMesh, onPointer],
   );
 
   const handlePointerMove = useCallback((event: PointerEvent<HTMLDivElement>) => {
     if (!isPointerDown.current) return;
+    onPointer?.((event.clientX / window.innerWidth) * 100, (event.clientY / window.innerHeight) * 100);
     const moved = Math.hypot(
       event.clientX - startPosition.current.x,
       event.clientY - startPosition.current.y,
@@ -81,7 +83,7 @@ export function usePointerMeshes() {
         addMesh(event.clientX, event.clientY);
       }
     }
-  }, [addMesh]);
+  }, [addMesh, onPointer]);
 
   const handlePointerUp = useCallback((event: PointerEvent<HTMLDivElement>) => {
     isPointerDown.current = false;
