@@ -6,13 +6,19 @@ import { useViewportSize } from "./hooks/useViewportSize";
 function App() {
   const [connection, setConnection] = useState(() => {
     const params = new URLSearchParams(window.location.search);
-    return params.has("host") && params.has("session") ? "Connecting" : "Not paired";
+    return params.has("host") && params.has("session")
+      ? "Connecting"
+      : "Not paired";
   });
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const host = params.get("host");
     const sessionId = params.get("session");
     if (!host || !sessionId) return;
+    if (window.location.protocol === "https:" && host.startsWith("ws://")) {
+      setConnection("Blocked: HTTPS cannot use ws://");
+      return;
+    }
     const socket = new WebSocket(host);
     socket.addEventListener("open", () => {
       socket.send(JSON.stringify({ type: "pair", sessionId }));
@@ -20,9 +26,13 @@ function App() {
     socket.addEventListener("message", (event) => {
       try {
         if (JSON.parse(event.data).type === "paired") setConnection("Paired");
-      } catch { setConnection("Pairing failed"); }
+      } catch {
+        setConnection("Pairing failed");
+      }
     });
-    socket.addEventListener("error", () => setConnection("Connection failed"));
+    socket.addEventListener("error", () =>
+      setConnection("Connection failed (check LAN/WSS)"),
+    );
     socket.addEventListener("close", () => setConnection("Disconnected"));
     return () => socket.close();
   }, []);
@@ -72,6 +82,10 @@ function App() {
         <span className="log-label">Status:</span>
         <span className="log-value" aria-label="Mouse Handle Status">
           {status} / {connection}
+        </span>
+        <span className="log-label">Connection:</span>
+        <span className="log-value" aria-label="Connection Status">
+          {connection}
         </span>
       </div>
     </main>
