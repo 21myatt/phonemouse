@@ -34,7 +34,17 @@ function App() {
     socket.addEventListener("error", () =>
       setConnection("Connection failed (check LAN/WSS)"),
     );
-    socket.addEventListener("close", () => setConnection("Disconnected"));
+    socket.addEventListener("close", (event) => {
+      if (event.code === 1008 && event.reason === "A phone is already paired") {
+        setConnection("Rejected: another browser is paired");
+        return;
+      }
+      if (event.code === 1008 && event.reason === "Session expired") {
+        setConnection("Rejected: session expired");
+        return;
+      }
+      setConnection("Disconnected");
+    });
     return () => socket.close();
   }, [retry]);
 
@@ -87,6 +97,15 @@ function App() {
         <span className="log-label">Connection:</span>
         <span className="log-value" aria-label="Connection Status">
           {connection}
+        </span>
+        <span className="connection-note" aria-live="polite">
+          {connection === "Paired"
+            ? "One browser connected"
+            : connection.startsWith("Rejected")
+              ? "Close the other browser to connect"
+              : connection === "Disconnected"
+                ? "Tap Reconnect to try again"
+                : "Pair this browser with the host QR code"}
         </span>
         {(connection === "Disconnected" || connection.startsWith("Connection failed")) && (
           <button
