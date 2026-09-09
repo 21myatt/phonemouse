@@ -7,6 +7,10 @@ function App() {
   const socketRef = useRef<WebSocket | null>(null);
   const [connection, setConnection] = useState(() => {
     const params = new URLSearchParams(window.location.search);
+    const host = params.get("ws") ?? params.get("host");
+    if (window.location.protocol === "https:" && host?.startsWith("ws://")) {
+      return "Blocked: HTTPS cannot use ws://";
+    }
     return (params.has("ws") || params.has("host")) && params.has("session")
       ? "Connecting"
       : "Not paired";
@@ -17,10 +21,7 @@ function App() {
     const host = params.get("ws") ?? params.get("host");
     const sessionId = params.get("session");
     if (!host || !sessionId) return;
-    if (window.location.protocol === "https:" && host.startsWith("ws://")) {
-      setConnection("Blocked: HTTPS cannot use ws://");
-      return;
-    }
+    if (window.location.protocol === "https:" && host.startsWith("ws://")) return;
     const socket = new WebSocket(host);
     socketRef.current = socket;
     socket.addEventListener("open", () => {
@@ -58,9 +59,14 @@ function App() {
     handlePointerDown,
     handlePointerMove,
     handlePointerUp,
+    handlePointerCancel,
   } = usePointerMeshes((xPercent, yPercent) => {
     if (socketRef.current?.readyState === WebSocket.OPEN && connection === "Paired") {
-      socketRef.current.send(JSON.stringify({ type: "pointer", xPercent, yPercent }));
+      socketRef.current.send(JSON.stringify({ type: "pointer-delta", dxPercent: xPercent, dyPercent: yPercent }));
+    }
+  }, () => {
+    if (socketRef.current?.readyState === WebSocket.OPEN && connection === "Paired") {
+      socketRef.current.send(JSON.stringify({ type: "click", button: "left" }));
     }
   });
   return (
@@ -69,7 +75,7 @@ function App() {
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}
-      onPointerCancel={handlePointerUp}
+      onPointerCancel={handlePointerCancel}
     >
       <div className="mesh-layer" aria-hidden="true">
         {meshes.map((mesh) => (
