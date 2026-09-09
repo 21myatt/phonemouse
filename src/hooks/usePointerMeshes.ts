@@ -7,7 +7,7 @@ export type PointerStatus = "None" | "Clicked" | "Click candidate" | "Moving" | 
 const MESH_LIFETIME = 1500;
 const MAX_MESHES = 8;
 const TRAIL_DISTANCE = 18;
-const HOLD_TO_CLICK_MS = 3000;
+const HOLD_TO_DRAG_MS = 400;
 const MOVE_THRESHOLD = 6;
 const DOUBLE_TAP_WINDOW_MS = 320;
 
@@ -24,6 +24,8 @@ export function usePointerMeshes(onPointer?: (xPercent: number, yPercent: number
   const trailScale = useRef(0.6);
   const touchPointers = useRef(new Set<number>());
   const isDragging = useRef(false);
+  const holdReady = useRef(false);
+  const hasMoved = useRef(false);
   const holdClickFired = useRef(false);
   const holdTimer = useRef<number | null>(null);
   const pendingDelta = useRef<{ x: number; y: number } | null>(null);
@@ -86,18 +88,19 @@ export function usePointerMeshes(onPointer?: (xPercent: number, yPercent: number
       lastPointerPosition.current = { x: event.clientX, y: event.clientY };
       trailScale.current = 0.6;
       holdClickFired.current = false;
+      holdReady.current = false;
+      hasMoved.current = false;
       setStatus("Click candidate");
       holdTimer.current = window.setTimeout(() => {
         if (isPointerDown.current && !isDragging.current) {
-          holdClickFired.current = true;
-          setStatus("Clicked");
-          onTap?.("left");
+          holdReady.current = true;
+          setStatus("Holding");
         }
-      }, HOLD_TO_CLICK_MS);
+      }, HOLD_TO_DRAG_MS);
 
       addMesh(event.clientX, event.clientY);
     },
-    [addMesh, onTap],
+    [addMesh],
   );
 
   const handlePointerMove = useCallback((event: PointerEvent<HTMLDivElement>) => {
@@ -116,8 +119,17 @@ export function usePointerMeshes(onPointer?: (xPercent: number, yPercent: number
       event.clientX - startPosition.current.x,
       event.clientY - startPosition.current.y,
     );
-    if (!isDragging.current && moved <= MOVE_THRESHOLD) return;
+    if (moved <= MOVE_THRESHOLD) return;
+    hasMoved.current = true;
     if (!isDragging.current) {
+      if (!holdReady.current) {
+        const deltaX = event.clientX - lastPointerPosition.current.x;
+        const deltaY = event.clientY - lastPointerPosition.current.y;
+        lastPointerPosition.current = { x: event.clientX, y: event.clientY };
+        setStatus("Moving");
+        if (deltaX !== 0 || deltaY !== 0) onPointer?.((deltaX / window.innerWidth) * 100, (deltaY / window.innerHeight) * 100);
+        return;
+      }
       isDragging.current = true;
       onButton?.("button-down");
       lastPointerPosition.current = { x: event.clientX, y: event.clientY };
@@ -171,7 +183,7 @@ export function usePointerMeshes(onPointer?: (xPercent: number, yPercent: number
     if (event.currentTarget.hasPointerCapture(event.pointerId)) {
       event.currentTarget.releasePointerCapture(event.pointerId);
     }
-    if (!isScrolling.current && wasSingleTouch && !dragged && !holdClickFired.current) {
+    if (!isScrolling.current && wasSingleTouch && !dragged && !hasMoved.current && !holdClickFired.current) {
       if (tapTimer.current !== null) { window.clearTimeout(tapTimer.current); tapTimer.current = null; onDoubleTap?.(); }
       else tapTimer.current = window.setTimeout(() => { tapTimer.current = null; onTap?.("left"); }, DOUBLE_TAP_WINDOW_MS);
     }
@@ -183,6 +195,8 @@ export function usePointerMeshes(onPointer?: (xPercent: number, yPercent: number
     if (event.pointerType === "touch" && touchPointers.current.size === 0) { isScrolling.current = false; twoFingerMoved.current = false; }
     isPointerDown.current = false;
     isDragging.current = false;
+    holdReady.current = false;
+    hasMoved.current = false;
     if (event.pointerType === "touch") onButton?.("button-up");
     clearHoldTimer();
     pendingDelta.current = null;
