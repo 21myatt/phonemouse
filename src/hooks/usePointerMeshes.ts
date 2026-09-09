@@ -9,8 +9,9 @@ const MAX_MESHES = 8;
 const TRAIL_DISTANCE = 18;
 const HOLD_TO_CLICK_MS = 3000;
 const MOVE_THRESHOLD = 6;
+const DOUBLE_TAP_WINDOW_MS = 320;
 
-export function usePointerMeshes(onPointer?: (xPercent: number, yPercent: number) => void, onTap?: () => void) {
+export function usePointerMeshes(onPointer?: (xPercent: number, yPercent: number) => void, onTap?: (button: "left" | "right") => void, onScroll?: (dyPercent: number) => void, onButton?: (type: "button-down" | "button-up") => void, onDoubleTap?: () => void) {
   const [meshes, setMeshes] = useState<PointerMesh[]>([]);
   const [latestPointer, setLatestPointer] = useState<PointerMesh | null>(null);
   const [status, setStatus] = useState<PointerStatus>("None");
@@ -27,6 +28,10 @@ export function usePointerMeshes(onPointer?: (xPercent: number, yPercent: number
   const holdTimer = useRef<number | null>(null);
   const pendingDelta = useRef<{ x: number; y: number } | null>(null);
   const frame = useRef<number | null>(null);
+  const tapTimer = useRef<number | null>(null);
+  const touchPositions = useRef(new Map<number, { x: number; y: number }>());
+  const isScrolling = useRef(false);
+  const twoFingerMoved = useRef(false);
 
   const clearStatusTimer = () => {
     if (statusTimer.current !== null) {
@@ -64,8 +69,11 @@ export function usePointerMeshes(onPointer?: (xPercent: number, yPercent: number
     (event: PointerEvent<HTMLDivElement>) => {
       event.currentTarget.setPointerCapture(event.pointerId);
       if (event.pointerType === "touch") touchPointers.current.add(event.pointerId);
+      if (event.pointerType === "touch") touchPositions.current.set(event.pointerId, { x: event.clientX, y: event.clientY });
       if (event.pointerType === "touch" && touchPointers.current.size > 1) {
         isPointerDown.current = false;
+        isScrolling.current = true;
+        twoFingerMoved.current = false;
         clearHoldTimer();
         setStatus("None");
         return;
@@ -83,7 +91,7 @@ export function usePointerMeshes(onPointer?: (xPercent: number, yPercent: number
         if (isPointerDown.current && !isDragging.current) {
           holdClickFired.current = true;
           setStatus("Clicked");
-          onTap?.();
+          onTap?.("left");
         }
       }, HOLD_TO_CLICK_MS);
 
@@ -93,6 +101,16 @@ export function usePointerMeshes(onPointer?: (xPercent: number, yPercent: number
   );
 
   const handlePointerMove = useCallback((event: PointerEvent<HTMLDivElement>) => {
+    if (event.pointerType === "touch" && isScrolling.current) {
+      const previous = touchPositions.current.get(event.pointerId);
+      if (previous) {
+        const delta = event.clientY - previous.y;
+        if (Math.abs(delta) > MOVE_THRESHOLD) twoFingerMoved.current = true;
+        if (delta !== 0) onScroll?.((delta / window.innerHeight) * 100);
+      }
+      touchPositions.current.set(event.pointerId, { x: event.clientX, y: event.clientY });
+      return;
+    }
     if (!isPointerDown.current) return;
     const moved = Math.hypot(
       event.clientX - startPosition.current.x,
@@ -101,6 +119,7 @@ export function usePointerMeshes(onPointer?: (xPercent: number, yPercent: number
     if (!isDragging.current && moved <= MOVE_THRESHOLD) return;
     if (!isDragging.current) {
       isDragging.current = true;
+      onButton?.("button-down");
       lastPointerPosition.current = { x: event.clientX, y: event.clientY };
       clearStatusTimer();
       clearHoldTimer();
@@ -131,12 +150,18 @@ export function usePointerMeshes(onPointer?: (xPercent: number, yPercent: number
         addMesh(event.clientX, event.clientY);
       }
     }
-  }, [addMesh, onPointer]);
+  }, [addMesh, onButton, onPointer, onScroll]);
 
   const handlePointerUp = useCallback((event: PointerEvent<HTMLDivElement>) => {
     const wasSingleTouch = event.pointerType === "touch" && touchPointers.current.size === 1;
     const dragged = isDragging.current;
+    if (dragged) onButton?.("button-up");
     if (event.pointerType === "touch") touchPointers.current.delete(event.pointerId);
+    if (event.pointerType === "touch") touchPositions.current.delete(event.pointerId);
+    if (event.pointerType === "touch" && touchPointers.current.size === 0) {
+      if (!twoFingerMoved.current) onTap?.("right");
+      isScrolling.current = false;
+    }
     isPointerDown.current = false;
     isDragging.current = false;
     clearStatusTimer();
@@ -146,20 +171,26 @@ export function usePointerMeshes(onPointer?: (xPercent: number, yPercent: number
     if (event.currentTarget.hasPointerCapture(event.pointerId)) {
       event.currentTarget.releasePointerCapture(event.pointerId);
     }
-    if (wasSingleTouch && !dragged && !holdClickFired.current) onTap?.();
-  }, [onTap]);
+    if (!isScrolling.current && wasSingleTouch && !dragged && !holdClickFired.current) {
+      if (tapTimer.current !== null) { window.clearTimeout(tapTimer.current); tapTimer.current = null; onDoubleTap?.(); }
+      else tapTimer.current = window.setTimeout(() => { tapTimer.current = null; onTap?.("left"); }, DOUBLE_TAP_WINDOW_MS);
+    }
+  }, [onButton, onDoubleTap, onTap]);
 
   const handlePointerCancel = useCallback((event: PointerEvent<HTMLDivElement>) => {
     if (event.pointerType === "touch") touchPointers.current.delete(event.pointerId);
+    if (event.pointerType === "touch") touchPositions.current.delete(event.pointerId);
+    if (event.pointerType === "touch" && touchPointers.current.size === 0) { isScrolling.current = false; twoFingerMoved.current = false; }
     isPointerDown.current = false;
     isDragging.current = false;
+    if (event.pointerType === "touch") onButton?.("button-up");
     clearHoldTimer();
     pendingDelta.current = null;
     if (frame.current !== null) window.cancelAnimationFrame(frame.current);
     frame.current = null;
     clearStatusTimer();
     if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
-  }, []);
+  }, [onButton]);
 
   useEffect(() => {
     const timersToClear = timers.current;

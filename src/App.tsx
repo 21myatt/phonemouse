@@ -64,9 +64,21 @@ function App() {
     if (socketRef.current?.readyState === WebSocket.OPEN && connection === "Paired") {
       socketRef.current.send(JSON.stringify({ type: "pointer-delta", dxPercent: xPercent, dyPercent: yPercent }));
     }
+  }, (button) => {
+    if (socketRef.current?.readyState === WebSocket.OPEN && connection === "Paired") {
+      socketRef.current.send(JSON.stringify({ type: "click", button }));
+    }
+  }, (dyPercent) => {
+    if (socketRef.current?.readyState === WebSocket.OPEN && connection === "Paired") {
+      socketRef.current.send(JSON.stringify({ type: "scroll", dyPercent }));
+    }
+  }, (type) => {
+    if (socketRef.current?.readyState === WebSocket.OPEN && connection === "Paired") {
+      socketRef.current.send(JSON.stringify({ type, button: "left" }));
+    }
   }, () => {
     if (socketRef.current?.readyState === WebSocket.OPEN && connection === "Paired") {
-      socketRef.current.send(JSON.stringify({ type: "click", button: "left" }));
+      socketRef.current.send(JSON.stringify({ type: "click", button: "double" }));
     }
   });
   return (
