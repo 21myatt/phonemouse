@@ -7,7 +7,7 @@ export type PointerStatus = "None" | "Clicked" | "Click candidate" | "Moving" | 
 const MESH_LIFETIME = 1500;
 const MAX_MESHES = 8;
 const TRAIL_DISTANCE = 18;
-const HOLD_TO_DRAG_MS = 400;
+const HOLD_TO_DRAG_MS = 2000;
 const MOVE_THRESHOLD = 6;
 const DOUBLE_TAP_WINDOW_MS = 320;
 
